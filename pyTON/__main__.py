@@ -9,15 +9,7 @@ import importlib.resources
 from tvm_valuetypes.cell import deserialize_cell_from_object
 import warnings, traceback
 
-def main():
-    parser = argparse.ArgumentParser()
-    parser.add_argument('--port', '-p', default=8000, type=int)
-    parser.add_argument('--getmethods', '-g', default=False, type=bool)
-    parser.add_argument('--jsonrpc', '-j', default=True, type=bool)
-    args = parser.parse_args()
-    port = args.port
-    routes = web.RouteTableDef()
-    default_config = {
+default_config = {
 
         "liteservers": [
           {
@@ -42,11 +34,27 @@ def main():
         }
       }
 
+def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--port', '-p', default=8000, type=int)
+    parser.add_argument('--getmethods', '-g', default=False, type=bool)
+    parser.add_argument('--jsonrpc', '-j', default=True, type=bool)
+    parser.add_argument('--liteserverconfig', '-l', default=None, type=str)
+    args = parser.parse_args()
+    port = args.port
+    routes = web.RouteTableDef()
+    lite_server_config = default_config
+    if args.liteserverconfig:
+      try:
+        with open(args.liteserverconfig, "r") as f:
+          lite_server_config = json.loads(f.read())
+      except Exception as e:
+        print("Can't read provided lite_server_config (%s): %s", args.liteserverconfig, str(e))
 
     keystore= os.path.expanduser('ton_keystore')
     if not os.path.exists(keystore):
         os.makedirs(keystore)
-    tonlib = TonlibClient(default_config, keystore=keystore)
+    tonlib = TonlibClient(lite_server_config, keystore=keystore)
 
     def detect_address(address):
         try:
@@ -95,7 +103,7 @@ def main():
       return g
 
     def address_state(account_info):
-      if len(account_info.get("code","")) == 0:
+      if isinstance(account_info.get("code",""), int) or len(account_info.get("code","")) == 0:
         if len(account_info.get("frozen_hash","")) == 0:
           return "uninitialized"
         else:
