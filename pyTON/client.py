@@ -30,8 +30,6 @@ def h2b64(x):
 
 
 class TonlibClient:
-    _t_local = threading.local()
-    _style = 'Choose asyncio or concurrent.futures style'
 
     def __init__(self, loop, config, keystore):
         self.loop = loop
@@ -87,7 +85,7 @@ class TonlibClient:
             '@type': 'setLogVerbosityLevel',
             'new_verbosity_level': level
             }
-        return self.tonlib_wrapper.execute(request)
+        return await self.tonlib_wrapper.execute(request)
 
     async def raw_get_transactions(self, account_address: str, from_transaction_lt: str, from_transaction_hash: str):
         """
@@ -133,7 +131,7 @@ class TonlibClient:
                 'hash': from_transaction_hash
             }
         }
-        return self._t_local.tonlib_wrapper.execute(request)
+        return await self.tonlib_wrapper.execute(request)
 
     async def get_transactions(self, account_address, from_transaction_lt=None, from_transaction_hash=None,
                                                 to_transaction_lt=0, limit = 1000):
@@ -235,7 +233,7 @@ class TonlibClient:
             }
         }
 
-        return self._t_local.tonlib_wrapper.execute(request)
+        return await self.tonlib_wrapper.execute(request)
 
     async def generic_get_account_state(self, address: str):
         account_address = prepare_address(address)
@@ -245,7 +243,7 @@ class TonlibClient:
                 'account_address': address
             }
         }
-        return self._t_local.tonlib_wrapper.execute(request)
+        return await self.tonlib_wrapper.execute(request)
 
     async def _load_contract(self, address):
         if(self.loaded_contracts_num > 300):
@@ -257,7 +255,7 @@ class TonlibClient:
                   'account_address': address
               }
         }  
-        r = await self._t_local.tonlib_wrapper.execute(request)
+        r = await self.tonlib_wrapper.execute(request)
         self.loaded_contracts_num += 1
         return r["id"]    
 
@@ -315,7 +313,7 @@ class TonlibClient:
         '@type': 'raw.sendMessage',
         'body': serialized_boc
       }
-      return self.tonlib_wrapper.execute(request)
+      return await self.tonlib_wrapper.execute(request)
       
     async def _raw_create_query(self, destination, body, init_code=b'', init_data=b''):
       """
@@ -337,7 +335,7 @@ class TonlibClient:
           'account_address': destination
         }
       }
-      return self.tonlib_wrapper.execute(request)
+      return await self.tonlib_wrapper.execute(request)
     
     async def _raw_send_query(self, query_info): 
       """
@@ -347,7 +345,7 @@ class TonlibClient:
         '@type': 'query.send',
         'id': query_info['id']
       }
-      return self.tonlib_wrapper.execute(request)
+      return await self.tonlib_wrapper.execute(request)
     
 
     async def raw_create_and_send_query(self, destination, body, init_code=b'', init_data=b''):
@@ -371,7 +369,7 @@ class TonlibClient:
         'initial_account_state': initial_account_state,
         'data': body
       }
-      return self.tonlib_wrapper.execute(request)
+      return await self.tonlib_wrapper.execute(request)
 
     async def raw_estimate_fees(self, destination, body, init_code=b'', init_data=b'', ignore_chksig=True):
       query_info = self._raw_create_query(destination, body, init_code, init_data)
@@ -380,5 +378,4 @@ class TonlibClient:
         'id': query_info['id'],
         'ignore_chksig': ignore_chksig
       }
-      r = self.tonlib_wrapper.execute(request)
-      return r
+      return await self.tonlib_wrapper.execute(request)

@@ -76,7 +76,7 @@ class TonLib:
     async def tl_loop(self):
       while True:
         result = self.receive(0) # get result if ready
-        if result and isinstance(result, dict) and ("@extra" in result) and (result["extra"] in self.futures):
-          self.futures[result["extra"]].set_result(result)
-          del self.futures[result["extra"]]
+        if result and isinstance(result, dict) and ("@extra" in result) and (result["@extra"] in self.futures):
+          self.futures[result["@extra"]].set_result(result)
+          del self.futures[result["@extra"]]
         await asyncio.sleep(0.05) 

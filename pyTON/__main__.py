@@ -343,8 +343,11 @@ async def main(loop):
         app.router.add_route(method="OPTIONS", path=route.path, handler=cors_handler)
     runner = web.AppRunner(app)
     await runner.setup()
-    site = web.TCPSite(runner, 'localhost', 8080)
+    site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
+    while True:
+      await asyncio.sleep(1)
+    await runner.cleanup()
 
 
 if __name__ == "__main__":
