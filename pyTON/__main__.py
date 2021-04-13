@@ -1,7 +1,7 @@
 from .client import TonlibClient
 from .address_utils import detect_address as _detect_address, prepare_address as _prepare_address
 from .wallet_utils import wallets as known_wallets, sha256
-import json
+import json, asyncio
 from aiohttp import web
 import base64, argparse, os, codecs
 
@@ -34,7 +34,7 @@ default_config = {
         }
       }
 
-def main():
+async def main(loop):
     parser = argparse.ArgumentParser()
     parser.add_argument('--port', '-p', default=8000, type=int)
     parser.add_argument('--getmethods', '-g', default=False, type=bool)
@@ -54,7 +54,8 @@ def main():
     keystore= os.path.expanduser('ton_keystore')
     if not os.path.exists(keystore):
         os.makedirs(keystore)
-    tonlib = TonlibClient(lite_server_config, keystore=keystore)
+    tonlib = TonlibClient(loop, lite_server_config, keystore=keystore)
+    await tonlib.init_tonlib()
 
     def detect_address(address):
         try:
@@ -151,6 +152,12 @@ def main():
     async def getWalletInformation(request):
       address = prepare_address(request.query['address'])
       result = await tonlib.raw_get_account_state(address)
+      if not "@type" in result or result["@type"]=="error":
+        result = await tonlib.raw_get_account_state(address)
+      if not "@type" in result:
+        raise Exception("Unknown answer from lite server")
+      if result["@type"]=="error":
+        raise Exception(result["message"])
       res = {'wallet':False, 'balance': 0, 'account_state':None, 'wallet_type':None, 'seqno':None}
       res["account_state"] = address_state(result)
       res["balance"] = result["balance"] if (result["balance"] and int(result["balance"])>0) else 0
@@ -158,10 +165,10 @@ def main():
         res["last_transaction_id"] = result["last_transaction_id"]
       ci = sha256(result["code"])
       if ci in known_wallets:
-        res["wallet"] = True
-        wallet_handler = known_wallets[ci]
-        res["wallet_type"] = wallet_handler["type"]
-        wallet_handler["data_extractor"](res, result)
+          res["wallet"] = True
+          wallet_handler = known_wallets[ci]
+          res["wallet_type"] = wallet_handler["type"]
+          wallet_handler["data_extractor"](res, result)
       return res
 
     @routes.get('/getTransactions')
@@ -334,8 +341,12 @@ def main():
     for route in list(routes):
       if not isinstance(route, web.StaticDef):
         app.router.add_route(method="OPTIONS", path=route.path, handler=cors_handler)
-    web.run_app(app, port = port)
+    runner = web.AppRunner(app)
+    await runner.setup()
+    site = web.TCPSite(runner, 'localhost', 8080)
+    await site.start()
 
 
 if __name__ == "__main__":
-    main()
+    loop = asyncio.get_event_loop()
+    loop.run_until_complete(main(loop))

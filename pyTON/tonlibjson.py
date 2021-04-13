@@ -2,6 +2,8 @@ import json
 from ctypes import *
 import platform
 import pkg_resources
+import random
+import asyncio
 
 def get_tonlib_path():
     arch_name = platform.system().lower()
@@ -15,8 +17,8 @@ def get_tonlib_path():
         'pyTON',
         'distlib/'+arch_name+'/'+lib_name)
 
-class TonWrapper:
-    def __init__(self, cdll_path=None):
+class TonLib:
+    def __init__(self, loop, cdll_path=None):
         cdll_path = get_tonlib_path() if not cdll_path else cdll_path
         tonlib = CDLL(cdll_path)
 
@@ -44,24 +46,37 @@ class TonWrapper:
         tonlib_json_client_destroy.restype = None
         tonlib_json_client_destroy.argtypes = [c_void_p]
         self._tonlib_json_client_destroy = tonlib_json_client_destroy
+        
+        self.futures = {}
+        self.loop = loop
+        self.loop_task = asyncio.ensure_future(self.tl_loop(), loop=self.loop)
 
 
     def __del__(self):
         self._tonlib_json_client_destroy(self._client)
 
-    def ton_send(self, query):
+    def send(self, query):
         query = json.dumps(query).encode('utf-8')
         self._tonlib_json_client_send(self._client, query)
 
-    def ton_receive(self, timeout=10):
+    def receive(self, timeout=10):
         result = self._tonlib_json_client_receive(self._client, timeout)
         if result:
             result = json.loads(result.decode('utf-8'))
         return result
 
-    def ton_exec(self, query, timeout=10):
-        self.ton_send(query)
-        result = None
-        while (not isinstance(result, dict)) or (result['@type'] == 'updateSyncState'):
-          result = self.ton_receive(timeout) 
-        return result
+    def execute(self, query, timeout=10):
+        extra_id = "%s"%random.random()
+        query["@extra"] = extra_id
+        self.send(query)
+        future_result = self.loop.create_future()
+        self.futures[extra_id] = future_result
+        return future_result
+
+    async def tl_loop(self):
+      while True:
+        result = self.receive(0) # get result if ready
+        if result and isinstance(result, dict) and ("@extra" in result) and (result["extra"] in self.futures):
+          self.futures[result["extra"]].set_result(result)
+          del self.futures[result["extra"]]
+        await asyncio.sleep(0.05) 
