@@ -1,0 +1,248 @@
+diff --git a/tl/generate/scheme/tonlib_api.tl b/tl/generate/scheme/tonlib_api.tl
+index 4d928c1..c8cb482 100644
+--- a/tl/generate/scheme/tonlib_api.tl
++++ b/tl/generate/scheme/tonlib_api.tl
+@@ -202,6 +202,12 @@ data bytes:secureBytes = Data;
+ 
+ liteServer.info now:int53 version:int32 capabilities:int64 = liteServer.Info;
+ 
++
++blocks.masterchainInfo last:ton.BlockIdExt state_root_hash:bytes init:ton.BlockIdExt = blocks.MasterchainInfo;
++blocks.shards shards:vector<ton.BlockIdExt> = blocks.Shards;
++blocks.accountTransactionId account:bytes lt:int64 = blocks.AccountTransactionId;
++blocks.shortTxId mode:# account:mode.0?bytes lt:mode.1?int64 hash:mode.2?bytes = liteServer.TransactionId;
++blocks.transactions id:ton.blockIdExt req_count:int32 incomplete:Bool transactions:vector<blocks.shortTxId> = blocks.Transactions;
+ ---functions---
+ 
+ init options:options = options.Info;
+@@ -278,6 +284,12 @@ pchan.validatePromise public_key:bytes promise:pchan.promise = Ok;
+ pchan.packPromise promise:pchan.promise = Data;
+ pchan.unpackPromise data:secureBytes = pchan.Promise;
+ 
++
++blocks.getMasterchainInfo = blocks.MasterchainInfo;
++blocks.getShards id:ton.blockIdExt = blocks.Shards;
++blocks.lookupBlock mode:int32 id:ton.blockId lt:int64 utime:int32 = ton.BlockIdExt;
++blocks.getTransactions id:ton.blockIdExt mode:# count:# after:blocks.accountTransactionId = blocks.Transactions;
++
+ onLiteServerQueryResult id:int64 bytes:bytes = Ok;
+ onLiteServerQueryError id:int64 error:error = Ok;
+ 
+diff --git a/tonlib/tonlib/TonlibClient.cpp b/tonlib/tonlib/TonlibClient.cpp
+index e215683..4fd5f83 100644
+--- a/tonlib/tonlib/TonlibClient.cpp
++++ b/tonlib/tonlib/TonlibClient.cpp
+@@ -54,6 +54,11 @@
+ 
+ #include "common/util.h"
+ 
++template <class Type>
++using lite_api_ptr = ton::lite_api::object_ptr<Type>;
++template <class Type>
++using tonlib_api_ptr = ton::tonlib_api::object_ptr<Type>;
++
+ namespace tonlib {
+ namespace int_api {
+ struct GetAccountState {
+@@ -1929,12 +1934,12 @@ const MasterConfig& get_default_master_config() {
+       "file_hash": "XplPz01CXAps5qeSWUtxcyBfdAo5zVb1N979KLSKD24="
+     },
+     "init_block" : {
+-       "file_hash": "t/9VBPODF7Zdh4nsnA49dprO69nQNMqYL+zk5bCjV/8=",
+-       "seqno": 8536841,
+-       "root_hash": "08Kpc9XxrMKC6BF/FeNHPS3MEL1/Vi/fQU/C9ELUrkc=",
+-       "workchain": -1,
+-       "shard": -9223372036854775808
+-   },
++	    "root_hash": "jvVQl+xDrVGdpXAsrreAQkLGVeZ/RjKOMEJY+Y3QTMI=",
++	    "seqno": 10176065,
++	    "file_hash": "MMhXPS8zAC2UVB+6u3+KoY0EJWypGMskptxMdzgFCa0=",
++	    "workchain": -1,
++	    "shard": -9223372036854775808
++    },
+    "hardforks": [
+       {
+         "file_hash": "t/9VBPODF7Zdh4nsnA49dprO69nQNMqYL+zk5bCjV/8=",
+@@ -3928,17 +3933,18 @@ td::Status TonlibClient::do_request(const tonlib_api::liteServer_getInfo& reques
+   return td::Status::OK();
+ }
+ 
++auto to_bits256(td::Slice data, td::Slice name) -> td::Result<td::Bits256> {
++  if (data.size() != 32) {
++    return TonlibError::InvalidField(name, "wrong length (not 32 bytes)");
++  }
++  return td::Bits256(data.ubegin());
++}
++
+ td::Status TonlibClient::do_request(tonlib_api::withBlock& request,
+                                     td::Promise<object_ptr<tonlib_api::Object>>&& promise) {
+   if (!request.id_) {
+     return TonlibError::EmptyField("id");
+   }
+-  auto to_bits256 = [](td::Slice data, td::Slice name) -> td::Result<td::Bits256> {
+-    if (data.size() != 32) {
+-      return TonlibError::InvalidField(name, "wrong length (not 32 bytes)");
+-    }
+-    return td::Bits256(data.ubegin());
+-  };
+   TRY_RESULT(root_hash, to_bits256(request.id_->root_hash_, "root_hash"));
+   TRY_RESULT(file_hash, to_bits256(request.id_->file_hash_, "file_hash"));
+   ton::BlockIdExt block_id(request.id_->workchain_, request.id_->shard_, request.id_->seqno_, root_hash, file_hash);
+@@ -3946,6 +3952,128 @@ td::Status TonlibClient::do_request(tonlib_api::withBlock& request,
+   return td::Status::OK();
+ }
+ 
++auto to_tonlib_api(const ton::lite_api::tonNode_blockIdExt& blk) -> tonlib_api_ptr<tonlib_api::ton_blockIdExt> {
++  return tonlib_api::make_object<tonlib_api::ton_blockIdExt>(
++      blk.workchain_, blk.shard_, blk.seqno_, blk.root_hash_.as_slice().str(), blk.file_hash_.as_slice().str());
++}
++
++/*auto to_tonlib_api(const ton::BlockIdExt& blk) -> tonlib_api_ptr<tonlib_api::ton_blockIdExt> {
++  return tonlib_api::make_object<tonlib_api::ton_blockIdExt>(
++      blk.workchain, blk.shard, blk.seqno, blk.root_hash.as_slice().str(), blk.file_hash.as_slice().str());
++}*/
++
++auto to_tonlib_api(const ton::lite_api::tonNode_zeroStateIdExt& zeroStateId)
++    -> tonlib_api_ptr<tonlib_api::ton_blockIdExt> {
++  return tonlib_api::make_object<tonlib_api::ton_blockIdExt>( //TODO check wether shard indeed 0???
++      zeroStateId.workchain_, 0, 0, zeroStateId.root_hash_.as_slice().str(), zeroStateId.file_hash_.as_slice().str());
++}
++
++auto to_lite_api(const tonlib_api::ton_blockIdExt& blk) -> td::Result<lite_api_ptr<ton::lite_api::tonNode_blockIdExt>> {
++  TRY_RESULT(root_hash, to_bits256(blk.root_hash_, "blk.root_hash"))
++  TRY_RESULT(file_hash, to_bits256(blk.file_hash_, "blk.file_hash"))
++  return ton::lite_api::make_object<ton::lite_api::tonNode_blockIdExt>(
++      blk.workchain_, blk.shard_, blk.seqno_, root_hash, file_hash);
++}
++
++td::Status TonlibClient::do_request(const tonlib_api::blocks_getMasterchainInfo& masterchain_info,
++                        td::Promise<object_ptr<tonlib_api::blocks_masterchainInfo>>&& promise) {
++  client_.send_query(ton::lite_api::liteServer_getMasterchainInfo(),
++                     promise.wrap([](lite_api_ptr<ton::lite_api::liteServer_masterchainInfo>&& masterchain_info) {
++                       return tonlib_api::make_object<tonlib_api::blocks_masterchainInfo>(
++                           to_tonlib_api(*masterchain_info->last_), masterchain_info->state_root_hash_.as_slice().str(),
++                           to_tonlib_api(*masterchain_info->init_));
++                     }));
++  return td::Status::OK();
++}
++
++td::Status TonlibClient::do_request(const tonlib_api::blocks_getShards& request,
++                        td::Promise<object_ptr<tonlib_api::blocks_shards>>&& promise) {
++  TRY_RESULT(block, to_lite_api(*request.id_))
++  client_.send_query(ton::lite_api::liteServer_getAllShardsInfo(std::move(block)),
++                     promise.wrap([](lite_api_ptr<ton::lite_api::liteServer_allShardsInfo>&& all_shards_info) {
++                        td::BufferSlice proof = std::move((*all_shards_info).proof_);
++                        td::BufferSlice data = std::move((*all_shards_info).data_);
++                        if (data.empty()) {
++                          //return td::Status::Error("shard configuration is empty");
++                        } else {
++                          auto R = vm::std_boc_deserialize(data.clone());
++                          if (R.is_error()) {
++                            //return td::Status::Error("cannot deserialize shard configuration");
++                          }
++                          auto root = R.move_as_ok();
++                          block::ShardConfig sh_conf;
++                          if (!sh_conf.unpack(vm::load_cell_slice_ref(root))) {
++                            //return td::Status::Error("cannot extract shard block list from shard configuration");
++                          } else {
++                            auto ids = sh_conf.get_shard_hash_ids(true);
++                            tonlib_api::blocks_shards shards;
++                            for (auto id : ids) {
++                              auto ref = sh_conf.get_shard_hash(ton::ShardIdFull(id));
++                              if (ref.not_null()) {
++                                shards.shards_.push_back(to_tonlib_api(ref->top_block_id()));
++                              }
++                            }
++                           return tonlib_api::make_object<tonlib_api::blocks_shards>(std::move(shards));
++                          }
++                        }
++                     }));
++  return td::Status::OK();
++}
++
++
++td::Status TonlibClient::do_request(const tonlib_api::blocks_lookupBlock& request,
++                        td::Promise<object_ptr<tonlib_api::ton_blockIdExt>>&& promise) {
++  client_.send_query(ton::lite_api::liteServer_lookupBlock(
++                       request.mode_,
++                       ton::lite_api::make_object<ton::lite_api::tonNode_blockId>((*request.id_).workchain_, (*request.id_).shard_, (*request.id_).seqno_),
++                       (td::uint64)(request.lt_),
++                       (td::uint32)(request.utime_)),
++                     promise.wrap([](lite_api_ptr<ton::lite_api::liteServer_blockHeader>&& header) {
++                        const auto& id = header->id_;
++                        return to_tonlib_api(*id);
++                        //tonlib_api::make_object<tonlib_api::ton_blockIdExt>(
++                        //  ton::tonlib_api::ton_blockIdExt(id->workchain_, id->)
++                        //);
++                     }));
++  return td::Status::OK();
++}
++
++auto to_tonlib_api(const ton::lite_api::liteServer_transactionId& txid)
++    -> tonlib_api_ptr<tonlib_api::blocks_shortTxId> {
++  return tonlib_api::make_object<tonlib_api::blocks_shortTxId>( 
++      txid.mode_, txid.account_.as_slice().str(), txid.lt_, txid.hash_.as_slice().str());
++}
++
++td::Status TonlibClient::do_request(const tonlib_api::blocks_getTransactions& request,
++                        td::Promise<object_ptr<tonlib_api::blocks_transactions>>&& promise) {
++  TRY_RESULT(block, to_lite_api(*request.id_))
++  TRY_RESULT(account, to_bits256((*request.after_).account_, "account"));
++  auto after = ton::lite_api::make_object<ton::lite_api::liteServer_transactionId3>(account, (*request.after_).lt_);
++  client_.send_query(ton::lite_api::liteServer_listBlockTransactions(
++                       std::move(block),
++                       request.mode_,
++                       request.count_,
++                       std::move(after),
++                       false,
++                       false),
++                     promise.wrap([](lite_api_ptr<ton::lite_api::liteServer_blockTransactions>&& bTxes) {
++                        const auto& id = bTxes->id_;
++                        //for (auto id : ids) {
++                        tonlib_api::blocks_transactions r;
++                        r.id_ = to_tonlib_api(*id);
++                        r.req_count_ = bTxes->req_count_;
++                        r.incomplete_ = bTxes->incomplete_;
++                        for (auto& id: bTxes->ids_) {
++                          //tonlib_api::blocks_shortTxId txid = tonlib_api::blocks_shortTxId(id->mode_, id->account_.as_slice().str(), id->lt_, id->hash_.as_slice().str());
++                          //r.transactions_.push_back(txid);
++                          r.transactions_.push_back(to_tonlib_api(*id));
++                        }
++                        return tonlib_api::make_object<tonlib_api::blocks_transactions>(std::move(r));
++                     }));
++  return td::Status::OK();
++}
++
++
+ template <class P>
+ td::Status TonlibClient::do_request(const tonlib_api::runTests& request, P&&) {
+   UNREACHABLE();
+diff --git a/tonlib/tonlib/TonlibClient.h b/tonlib/tonlib/TonlibClient.h
+index 52529db..35adbd2 100644
+--- a/tonlib/tonlib/TonlibClient.h
++++ b/tonlib/tonlib/TonlibClient.h
+@@ -321,6 +321,8 @@ class TonlibClient : public td::actor::Actor {
+   td::Status do_request(tonlib_api::pchan_unpackPromise& request,
+                         td::Promise<object_ptr<tonlib_api::pchan_promise>>&& promise);
+ 
++
++
+   void do_dns_request(std::string name, td::int32 category, td::int32 ttl, td::optional<ton::BlockIdExt> block_id,
+                       block::StdAddress address, td::Promise<object_ptr<tonlib_api::dns_resolved>>&& promise);
+   struct DnsFinishData {
+@@ -342,6 +344,15 @@ class TonlibClient : public td::actor::Actor {
+ 
+   td::Status do_request(tonlib_api::withBlock& request, td::Promise<object_ptr<tonlib_api::Object>>&& promise);
+ 
++  td::Status do_request(const tonlib_api::blocks_getMasterchainInfo& masterchain_info,
++                        td::Promise<object_ptr<tonlib_api::blocks_masterchainInfo>>&& promise);
++  td::Status do_request(const tonlib_api::blocks_getShards& request,
++                        td::Promise<object_ptr<tonlib_api::blocks_shards>>&& promise);
++  td::Status do_request(const tonlib_api::blocks_lookupBlock& block_header,
++                        td::Promise<object_ptr<tonlib_api::ton_blockIdExt>>&& promise);
++  td::Status do_request(const tonlib_api::blocks_getTransactions& block_data,
++                        td::Promise<object_ptr<tonlib_api::blocks_transactions>>&& promise);
++
+   void proxy_request(td::int64 query_id, std::string data);
+ 
+   friend class TonlibQueryActor;
