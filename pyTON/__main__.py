@@ -214,6 +214,48 @@ async def main(loop):
     async def unpackAddress(request):
       return detect_address(request.query['address'])["raw_form"]
 
+    @routes.get('/getMasterchainInfo')
+    @json_rpc('getMasterchainInfo', 'get')
+    @wrap_result
+    async def getMasterchainInfo(request):
+      return await tonlib.getMasterchainInfo()
+
+    @routes.get('/lookupBlock')
+    @json_rpc('lookupBlock', 'get')
+    @wrap_result
+    async def lookupBlock(request):
+      workchain = int(request.query['workchain'])
+      shard = int(request.query['shard'])
+      seqno = request.query.get('seqno', None)
+      seqno = int(seqno) if seqno else None
+      lt = request.query.get('lt', None)
+      lt = int(lt) if lt else None
+      unixtime = request.query.get('unixtime', None)
+      unixtime = int(unixtime) if unixtime else None
+      return await tonlib.lookupBlock(workchain, shard, seqno, lt, unixtime)
+
+
+    @routes.get('/shards')
+    @json_rpc('shards', 'get')
+    @wrap_result
+    async def lookupBlock(request):
+      seqno = request.query.get('seqno', None)
+      seqno = int(seqno) if seqno else None
+      return await tonlib.getShards(seqno)
+
+    @routes.get('/getBlockTransactions')
+    @json_rpc('getBlockTransactions', 'get')
+    @wrap_result
+    async def getBlockTransactions(request):
+      workchain = int(request.query['workchain'])
+      shard = int(request.query['shard'])
+      seqno = request.query.get('seqno', None)
+      seqno = int(seqno) if seqno else None
+      root_hash = request.query.get('root_hash', None)
+      file_hash = request.query.get('file_hash', None)
+      return await tonlib.getBlockTransactions(workchain, shard, seqno, root_hash, file_hash)
+
+
     @routes.get('/detectAddress')
     @json_rpc('detectAddress', 'get')
     @wrap_result

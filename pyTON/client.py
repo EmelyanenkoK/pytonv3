@@ -379,3 +379,68 @@ class TonlibClient:
         'ignore_chksig': ignore_chksig
       }
       return await self.tonlib_wrapper.execute(request)
+
+    async def lookupBlock(self, workchain, shard, seqno=None, lt=None, unixtime=None):
+      assert seqno or lt or unixtime, "Seqno, LT or unixtime should be defined"
+      mode = 0
+      if seqno:
+        mode+=1
+      if lt:
+        mode+=2
+      if unixtime:
+        mode+=3
+      request = {
+        '@type': 'blocks.lookupBlock',
+        'mode': mode,
+        'id': {
+          '@type':'ton.blockId',
+          'workchain':workchain,
+          'shard':shard,
+          'seqno':seqno
+        },
+        'lt':lt,
+        'utime':unixtime
+      }
+      return await self.tonlib_wrapper.execute(request)
+
+    async def getShards(self, master_seqno):
+      wc, shard = -1, -9223372036854775808
+      fullblock = await self.lookupBlock(wc, shard, master_seqno)
+      request = {
+        '@type': 'blocks.getShards',
+        'id': fullblock
+      }
+      return await self.tonlib_wrapper.execute(request)
+
+    async def raw_getBlockTransactions(self, fullblock, after_tx=None):
+      dummy_after = {
+        '@type':'blocks.accountTransactionId',
+        'account':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        'lt':0
+      }
+      request = {
+        '@type': 'blocks.getTransactions',
+        'id': fullblock,
+        'mode': 7 if not after_tx else 7+128,
+        'count':10,
+        'after':after_tx if after_tx else dummy_after
+      }
+      return await self.tonlib_wrapper.execute(request)
+
+    async def getBlockTransactions(self, workchain, shard, seqno, root_hash=None, file_hash=None):
+      wc, shard = -1, -9223372036854775808
+      fullblock={}
+      if root_hash and file_hash:
+        fullblock = {
+          '@type':'ton.blockIdExt',
+          'workchain':workchain,
+          'shard':shard,
+          'seqno':seqno,
+          'root_hash':root_hash,
+          'file_hash':file_hash
+        }
+      else:
+        fullblock = await self.lookupBlock(wc, shard, seqno)
+      result = await self.raw_getBlockTransactions(fullblock)
+      # TODO automatically check incompleteness and download all txes
+      return result
