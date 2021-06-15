@@ -23,10 +23,19 @@ def sha256(x):
   return h.digest()
 
 simple_wallet_code = "te6cckEBAQEARAAAhP8AIN2k8mCBAgDXGCDXCx/tRNDTH9P/0VESuvKhIvkBVBBE+RDyovgAAdMfMSDXSpbTB9QC+wDe0aTIyx/L/8ntVEH98Ik="
-standard_wallet_code = "te6cckEBAQEAUwAAov8AIN0gggFMl7qXMO1E0NcLH+Ck8mCBAgDXGCDXCx/tRNDTH9P/0VESuvKhIvkBVBBE+RDyovgAAdMfMSDXSpbTB9QC+wDe0aTIyx/L/8ntVNDieG8="
+simple_wallet_code_r2 = "te6cckEBAQEAUwAAov8AIN0gggFMl7qXMO1E0NcLH+Ck8mCBAgDXGCDXCx/tRNDTH9P/0VESuvKhIvkBVBBE+RDyovgAAdMfMSDXSpbTB9QC+wDe0aTIyx/L/8ntVNDieG8="
+simple_wallet_code_r3 = "te6cckEBAQEAXwAAuv8AIN0gggFMl7ohggEznLqxnHGw7UTQ0x/XC//jBOCk8mCBAgDXGCDXCx/tRNDTH9P/0VESuvKhIvkBVBBE+RDyovgAAdMfMSDXSpbTB9QC+wDe0aTIyx/L/8ntVLW4bkI="
+wallet_code2 = "te6cckEBAQEAVwAAqv8AIN0gggFMl7qXMO1E0NcLH+Ck8mCDCNcYINMf0x8B+CO78mPtRNDTH9P/0VExuvKhA/kBVBBC+RDyovgAApMg10qW0wfUAvsA6NGkyMsfy//J7VShNwu2"
+wallet_code2_r2 = "te6cckEBAQEAYwAAwv8AIN0gggFMl7ohggEznLqxnHGw7UTQ0x/XC//jBOCk8mCDCNcYINMf0x8B+CO78mPtRNDTH9P/0VExuvKhA/kBVBBC+RDyovgAApMg10qW0wfUAvsA6NGkyMsfy//J7VQETNeh"
 wallet_v3_code = "te6cckEBAQEAYgAAwP8AIN0gggFMl7qXMO1E0NcLH+Ck8mCDCNcYINMf0x/TH/gjE7vyY+1E0NMf0x/T/9FRMrryoVFEuvKiBPkBVBBV+RDyo/gAkyDXSpbTB9QC+wDo0QGkyMsfyx/L/8ntVD++buA="
+wallet_v3_r2 = "te6cckEBAQEAcQAA3v8AIN0gggFMl7ohggEznLqxn3Gw7UTQ0x/THzHXC//jBOCk8mCDCNcYINMf0x/TH/gjE7vyY+1E0NMf0x/T/9FRMrryoVFEuvKiBPkBVBBV+RDyo/gAkyDXSpbTB9QC+wDo0QGkyMsfyx/L/8ntVBC9ba0="
 
-wallets = { sha256(simple_wallet_code): {'type': 'simple wallet', 'data_extractor':seqno_extractor},
-	    sha256(standard_wallet_code): {'type': 'standart wallet', 'data_extractor':seqno_extractor},
-	    sha256(wallet_v3_code): {'type': 'v3 wallet', 'data_extractor':v3_extractor}
+wallets = { sha256(simple_wallet_code): {'type': 'wallet v1 r1', 'data_extractor':seqno_extractor},
+            sha256(simple_wallet_code_r2): {'type': 'wallet v1 r2', 'data_extractor':seqno_extractor},
+            sha256(simple_wallet_code_r3): {'type': 'wallet v1 r3', 'data_extractor':seqno_extractor},
+            sha256(wallet_code2): {'type': 'wallet v2 r1', 'data_extractor':seqno_extractor},
+            sha256(wallet_code2_r2): {'type': 'wallet v2 r2', 'data_extractor':seqno_extractor},
+            sha256(wallet_v3_code): {'type': 'wallet v3 r1', 'data_extractor':v3_extractor},
+            sha256(wallet_v3_r2): {'type': 'wallet v3 r2', 'data_extractor':v3_extractor},
 }
+
