@@ -69,16 +69,17 @@ async def main(loop):
         except:
             raise web.HTTPRequestRangeNotSatisfiable()
 
-    def wrap_result(func):
+    def wrap_result(func, high_timeout = False):
       cors_origin_header = ("Access-Control-Allow-Origin", "*")
       cors_headers_header = ("Access-Control-Allow-Headers", "*")
       headers = [cors_origin_header, cors_headers_header]
       async def wrapper(*args, **kwargs):
         try:
-          return web.json_response( { "ok": True, "result": await func(*args, **kwargs) }, headers=headers)
+          return web.json_response( { "ok": True, "result": await asyncio.wait_for(func(*args, **kwargs), 100 if high_timeout else 5) }, headers=headers)
         except Exception as e:
           try:
-            return web.json_response( { "ok": False, "code": e.status_code,"error": str(e) }, headers=headers)
+            traceback.print_exc()
+            return web.json_response( { "ok": False, "code": e.status_code if hasattr(e,"status_code") else None,"error": str(e) }, headers=headers)
           except:
             warnings.warn("Unknown exception", SyntaxWarning)
             traceback.print_exc()
@@ -176,7 +177,7 @@ async def main(loop):
     @wrap_result
     async def getTransactions(request):
       address = prepare_address(request.query['address'])
-      limit = int(request.query.get('limit', 1000))
+      limit = int(request.query.get('limit', 10))
       lt = request.query.get('lt', None)
       lt = lt if not lt else int(lt)
       tx_hash = request.query.get('hash', None)

@@ -6,6 +6,7 @@ import socket
 from concurrent.futures import ThreadPoolExecutor
 import threading
 from datetime import datetime, timezone
+import time
 
 import json
 from .tonlibjson import TonLib
@@ -35,12 +36,15 @@ class TonlibClient:
         self.loop = loop
         self.config = config
         self.keystore = keystore
-    
+
     async def connect(self):
         pass
 
     async def reconnect(self):
-      await self.connect()
+      if not self.tonlib_wrapper.shutdown_state:
+        print(time.time(), "reconnect")
+        self.tonlib_wrapper.shutdown_state  = "started"
+        await self.init_tonlib()
 
     async def init_tonlib(self):
         """
@@ -57,7 +61,7 @@ class TonlibClient:
         :return: None
         """
         self.loaded_contracts_num = 0
-        self.tonlib_wrapper = TonLib(self.loop)
+        wrapper = TonLib(self.loop)
         keystore_obj = {
                 '@type': 'keyStoreTypeDirectory',
                 'directory': self.keystore
@@ -77,7 +81,9 @@ class TonlibClient:
             }
         }
 
-        await self.tonlib_wrapper.execute(request)
+        await wrapper.execute(request)
+        wrapper.set_restart_hook(hook = self.reconnect, max_requests=500)
+        self.tonlib_wrapper = wrapper
         await self.set_verbosity_level(0)
 
     async def set_verbosity_level(self, level):
@@ -134,7 +140,7 @@ class TonlibClient:
         return await self.tonlib_wrapper.execute(request)
 
     async def get_transactions(self, account_address, from_transaction_lt=None, from_transaction_hash=None,
-                                                to_transaction_lt=0, limit = 1000):
+                                                to_transaction_lt=0, limit = 10):
       """
        Return all transactions between from_transaction_lt and to_transaction_lt
        if to_transaction_lt and to_transaction_hash are not defined returns all transactions
@@ -205,7 +211,7 @@ class TonlibClient:
               except:
                  o["message"]=""
         except Exception as e:
-          pass  
+          print("getTransaction exception", e)
       return all_transactions
 
     async def raw_get_account_state(self, address: str):
@@ -246,8 +252,6 @@ class TonlibClient:
         return await self.tonlib_wrapper.execute(request)
 
     async def _load_contract(self, address):
-        if(self.loaded_contracts_num > 300):
-          await self.reconnect()
         account_address = prepare_address(address)
         request = {
               '@type': 'smc.load',
@@ -349,7 +353,7 @@ class TonlibClient:
     
 
     async def raw_create_and_send_query(self, destination, body, init_code=b'', init_data=b''):
-      query_info = self._raw_create_query(destination, body, init_code, init_data)
+      query_info = await self._raw_create_query(destination, body, init_code, init_data)
       return self._raw_send_query(query_info)
       
     async def raw_create_and_send_message(self, destination, body, initial_account_state=b''):
@@ -372,11 +376,17 @@ class TonlibClient:
       return await self.tonlib_wrapper.execute(request)
 
     async def raw_estimate_fees(self, destination, body, init_code=b'', init_data=b'', ignore_chksig=True):
-      query_info = self._raw_create_query(destination, body, init_code, init_data)
+      query_info = await self._raw_create_query(destination, body, init_code, init_data)
       request = {
         '@type': 'query.estimateFees',
         'id': query_info['id'],
         'ignore_chksig': ignore_chksig
+      }
+      return await self.tonlib_wrapper.execute(request)
+
+    async def getMasterchainInfo(self):
+      request = {
+        '@type': 'blocks.getMasterchainInfo'
       }
       return await self.tonlib_wrapper.execute(request)
 
@@ -441,6 +451,8 @@ class TonlibClient:
         }
       else:
         fullblock = await self.lookupBlock(wc, shard, seqno)
+        if fullblock.get('@type', 'error') == 'error':
+          return fullblock
       result = await self.raw_getBlockTransactions(fullblock)
       # TODO automatically check incompleteness and download all txes
       return result
