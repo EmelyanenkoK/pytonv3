@@ -14,15 +14,16 @@ from .address_utils import prepare_address
 from tvm_valuetypes import serialize_tvm_stack, render_tvm_stack, deserialize_boc
 
 
+def b64str_bytes(b64str):
+  b64bytes = codecs.encode(b64str, "utf8")
+  return codecs.decode(b64bytes, "base64")
 
 def b64str_str(b64str):
-  b64bytes = codecs.encode(b64str, "utf8")
-  _bytes = codecs.decode(b64bytes, "base64")
+  _bytes = b64str_bytes(b64str)
   return codecs.decode(_bytes, "utf8")
-  
+
 def b64str_hex(b64str):
-  b64bytes = codecs.encode(b64str, "utf8")
-  _bytes = codecs.decode(b64bytes, "base64")
+  _bytes = b64str_bytes(b64str)
   _hex = codecs.encode(_bytes, "hex")
   return codecs.decode(_hex, "utf8")
 
@@ -422,23 +423,17 @@ class TonlibClient:
       }
       return await self.tonlib_wrapper.execute(request)
 
-    async def raw_getBlockTransactions(self, fullblock, after_tx=None):
-      dummy_after = {
-        '@type':'blocks.accountTransactionId',
-        'account':'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-        'lt':0
-      }
+    async def raw_getBlockTransactions(self, fullblock, count, after_tx):
       request = {
         '@type': 'blocks.getTransactions',
         'id': fullblock,
         'mode': 7 if not after_tx else 7+128,
-        'count':10,
-        'after':after_tx if after_tx else dummy_after
+        'count':count,
+        'after':after_tx
       }
       return await self.tonlib_wrapper.execute(request)
 
-    async def getBlockTransactions(self, workchain, shard, seqno, root_hash=None, file_hash=None):
-      wc, shard = -1, -9223372036854775808
+    async def getBlockTransactions(self, workchain, shard, seqno, root_hash=None, file_hash=None, count=None, after_lt=None, after_hash=None):
       fullblock={}
       if root_hash and file_hash:
         fullblock = {
@@ -450,9 +445,52 @@ class TonlibClient:
           'file_hash':file_hash
         }
       else:
-        fullblock = await self.lookupBlock(wc, shard, seqno)
+        fullblock = await self.lookupBlock(workchain, shard, seqno)
         if fullblock.get('@type', 'error') == 'error':
           return fullblock
-      result = await self.raw_getBlockTransactions(fullblock)
+      after_tx = {
+        '@type':'blocks.accountTransactionId',
+        'account':after_hash if after_hash else 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+        'lt':after_lt if after_lt else 0
+      }
+      total_result = None
+      incomplete = True
+      req_count = count if count else 40
+      while incomplete:
+        result = await self.raw_getBlockTransactions(fullblock, req_count, after_tx)
+        if not total_result:
+          total_result = result
+        else:
+          total_result["transactions"]+=result["transactions"]
+          total_result["incomplete"] = result["incomplete"]
+        incomplete = result["incomplete"]
+        if incomplete:
+          after_tx['account'] = result["transactions"][-1]["account"]
+          after_tx['lt'] = result["transactions"][-1]["lt"]
       # TODO automatically check incompleteness and download all txes
-      return result
+      for tx in total_result["transactions"]:
+        try:
+          tx["account"] = "%d:%s"%(result["id"]["workchain"],b64str_hex(tx["account"]))
+        except:
+          pass
+      return total_result
+
+    async def getBlockHeader(self, workchain, shard, seqno, root_hash=None, file_hash=None):
+      if root_hash and file_hash:
+        fullblock = {
+          '@type':'ton.blockIdExt',
+          'workchain':workchain,
+          'shard':shard,
+          'seqno':seqno,
+          'root_hash':root_hash,
+          'file_hash':file_hash
+        }
+      else:
+        fullblock = await self.lookupBlock(workchain, shard, seqno)
+        if fullblock.get('@type', 'error') == 'error':
+          return fullblock
+      request = {
+        '@type': 'blocks.getBlockHeader',
+        'id': fullblock
+      }
+      return await self.tonlib_wrapper.execute(request)

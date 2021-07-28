@@ -250,12 +250,26 @@ async def main(loop):
     async def getBlockTransactions(request):
       workchain = int(request.query['workchain'])
       shard = int(request.query['shard'])
-      seqno = request.query.get('seqno', None)
-      seqno = int(seqno) if seqno else None
+      seqno = int(request.query['seqno'])
       root_hash = request.query.get('root_hash', None)
       file_hash = request.query.get('file_hash', None)
-      return await tonlib.getBlockTransactions(workchain, shard, seqno, root_hash, file_hash)
+      after_lt = request.query.get('after_lt')
+      after_lt = int(after_lt) if after_lt else after_lt
+      after_hash = request.query.get('after_hash')
+      count = request.query.get('count')
+      count = int(count) if count else count
+      return await tonlib.getBlockTransactions(workchain, shard, seqno, root_hash, file_hash, count, after_lt, after_hash)
 
+    @routes.get('/getBlockHeader')
+    @json_rpc('getBlockHeader', 'get')
+    @wrap_result
+    async def getBlockHeader(request):
+      workchain = int(request.query['workchain'])
+      shard = int(request.query['shard'])
+      seqno = int(request.query['seqno'])
+      root_hash = request.query.get('root_hash', None)
+      file_hash = request.query.get('file_hash', None)
+      return await tonlib.getBlockHeader(workchain, shard, seqno, root_hash, file_hash)
 
     @routes.get('/detectAddress')
     @json_rpc('detectAddress', 'get')
@@ -318,7 +332,7 @@ async def main(loop):
       data = await request.json()
       address = prepare_address(data['address'])
       addr_info = await tonlib.raw_get_account_state(address)
-      assert address_state(addr_info)=='active'
+      assert address_state(addr_info)=='active', "Address is not active"
       body = codecs.decode(codecs.encode(data['body'], "utf-8"), 'base64').replace("\n",'') 
       code = codecs.decode(codecs.encode(data.get('init_code', b''), "utf-8"), 'base64').replace("\n",'') 
       data = codecs.decode(codecs.encode(data.get('init_data', b''), "utf-8"), 'base64').replace("\n",'')
@@ -332,7 +346,7 @@ async def main(loop):
       data = await request.json()
       address = prepare_address(data['address'])
       addr_info = await tonlib.raw_get_account_state(address)
-      assert address_state(addr_info)=='active'
+      assert address_state(addr_info)=='active', "Address is not active"
       try:
         body = deserialize_cell_from_object(data['body']).serialize_boc(has_idx=False)
         qcode, qdata = b'', b''

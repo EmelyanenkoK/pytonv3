@@ -97,8 +97,6 @@ class TonLib:
               print("Timeout")
               autorestart = True
               result = False
-          if result:
-              print(result)
           if result and isinstance(result, dict) and ("@extra" in result) and (result["@extra"] in self.futures):
              try:
                if not self.futures[result["@extra"]].done():
