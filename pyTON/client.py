@@ -10,7 +10,7 @@ import time
 
 import json
 from .tonlibjson import TonLib
-from .address_utils import prepare_address
+from .address_utils import prepare_address, detect_address
 from tvm_valuetypes import serialize_tvm_stack, render_tvm_stack, deserialize_boc
 
 
@@ -33,10 +33,11 @@ def h2b64(x):
 
 class TonlibClient:
 
-    def __init__(self, loop, config, keystore):
+    def __init__(self, loop, config, keystore, cdll_path=None):
         self.loop = loop
         self.config = config
         self.keystore = keystore
+        self.cdll_path = cdll_path
 
     async def connect(self):
         pass
@@ -47,7 +48,7 @@ class TonlibClient:
         self.tonlib_wrapper.shutdown_state  = "started"
         await self.init_tonlib()
 
-    async def init_tonlib(self):
+    async def init_tonlib(self, cdll_path=None):
         """
         TL Spec
             init options:options = options.Info;
@@ -62,7 +63,7 @@ class TonlibClient:
         :return: None
         """
         self.loaded_contracts_num = 0
-        wrapper = TonLib(self.loop)
+        wrapper = TonLib(self.loop, self.cdll_path)
         keystore_obj = {
                 '@type': 'keyStoreTypeDirectory',
                 'directory': self.keystore
@@ -494,3 +495,66 @@ class TonlibClient:
         'id': fullblock
       }
       return await self.tonlib_wrapper.execute(request)
+
+    async def tryLocateTxByIncomingMessage(self, source, destination, creation_lt):
+      src = detect_address(source)
+      dest = detect_address(destination)
+      workchain = dest["raw_form"].split(":")[0]
+      shardchain = -9223372036854775808
+      for b in range(3):
+        #workchain, shard, seqno, root_hash=None, file_hash=None,
+        #return 0
+        block = await self.lookupBlock(workchain, shardchain, lt = int(creation_lt) + b*1000000)
+        #print(block)
+        txs = await self.getBlockTransactions(workchain, shardchain, block["seqno"], root_hash = block["root_hash"], file_hash = block["file_hash"])
+        #print(txs)
+        candidate = None
+        count = 0
+        for tx in txs["transactions"]:
+          print(tx["account"], dest["raw_form"], tx["account"] == dest["raw_form"])
+          if tx["account"] == dest["raw_form"]:
+            count +=1
+            if not candidate or candidate[1]<int(tx["lt"]):
+              candidate = tx["hash"], int(tx["lt"])
+        if candidate:
+          txses = await self.get_transactions(destination, from_transaction_lt=candidate[1], from_transaction_hash=b64str_hex(candidate[0]), limit=max(count, 10))
+          #print(json.dumps(txses, indent=2))
+          for tx in txses:
+            try:
+              in_msg = tx["in_msg"]
+              if detect_address(in_msg["source"])["raw_form"] == src["raw_form"]:
+                if int(in_msg["created_lt"]) == int(creation_lt):
+                  return tx
+            except KeyError:
+              pass
+      raise Exception("Tx not found")
+
+    async def tryLocateTxByOutcomingMessage(self, source, destination, creation_lt):
+      src = detect_address(source)
+      dest = detect_address(destination)
+      workchain = src["raw_form"].split(":")[0]
+      shardchain = -9223372036854775808
+      block = await self.lookupBlock(workchain, shardchain, lt=int(creation_lt))
+      txses = await self.getBlockTransactions(workchain, shardchain, block["seqno"], root_hash = block["root_hash"], file_hash = block["file_hash"])
+      #print(block)
+      #print(json.dumps(txses, indent=2))
+      candidate = None
+      count = 0
+      for tx in txses["transactions"]:
+        if tx["account"] == src["raw_form"]:
+          count +=1
+          if not candidate or candidate[1]<int(tx["lt"]):
+            candidate = tx["hash"], int(tx["lt"])
+      if candidate:
+        txses = await self.get_transactions(source, from_transaction_lt=candidate[1], from_transaction_hash=b64str_hex(candidate[0]), limit=max(count, 10))
+        for tx in txses:
+          try:
+            for msg in tx["out_msgs"]:
+              #print(detect_address(msg["destination"])["raw_form"], dest["raw_form"])
+              #print(msg["created_lt"], int(creation_lt))
+              if detect_address(msg["destination"])["raw_form"] == dest["raw_form"]:
+                if int(msg["created_lt"]) == int(creation_lt):
+                  return tx
+          except KeyError:
+              pass
+      raise Exception("Tx not found")

@@ -41,9 +41,9 @@ def account_forms(raw_form, test_only=False):
   workchain_tag = b'\xff' if workchain==-1 else workchain.to_bytes(1,"big")
   btag = bounceable_tag
   nbtag = non_bounceable_tag
-  if test_only:
-    btag = (btag[0] | 0x80).to_bytes(1,'big')
-    nbtag = (nbtag[0] | 0x80).to_bytes(1,'big')
+  #if test_only:
+  #  btag = (btag[0] | 0x80).to_bytes(1,'big')
+  #  nbtag = (nbtag[0] | 0x80).to_bytes(1,'big')
   preaddr_b =  btag + workchain_tag + address
   preaddr_u =  nbtag + workchain_tag + address
   b64_b = base64.b64encode(preaddr_b+calcCRC(preaddr_b)).decode('utf8')
@@ -84,7 +84,9 @@ def read_friendly_address(address):
     workchain = -1
   else:
     workchain = address_bytes[1]
-  raw_form = str(workchain)+":"+hex(int.from_bytes(address_bytes[2:-2], "big"))[2:]
+  hx = hex(int.from_bytes(address_bytes[2:-2], "big"))[2:]
+  hx = (64-len(hx))*"0"+hx
+  raw_form = str(workchain)+":"+hx
   account = account_forms(raw_form, test_only)
   account['given_type'] = "friendly_"+("bounceable" if bounceable else "non_bounceable")
   return account
