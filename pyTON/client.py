@@ -233,7 +233,6 @@ class TonlibClient:
             }
         """
         account_address = prepare_address(address)
-
         request = {
             '@type': 'raw.getAccountState',
             'account_address': {

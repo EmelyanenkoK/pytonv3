@@ -1,4 +1,5 @@
-from .client import TonlibClient
+from .multiclient import TonlibMultiClient as TonlibClient
+#from .client import TonlibClient
 from .address_utils import detect_address as _detect_address, prepare_address as _prepare_address
 from .wallet_utils import wallets as known_wallets, sha256
 import json, asyncio
@@ -204,7 +205,7 @@ async def main(loop):
       except Exception as e:
         print("Can't read provided lite_server_config (%s): %s", args.liteserverconfig, str(e))
 
-    keystore= args.keystore if args.keystore else os.path.expanduser('ton_keystore')
+    keystore= args.keystore if args.keystore else os.path.expanduser('ton_keystore/')
     if not os.path.exists(keystore):
         os.makedirs(keystore)
     tonlib = TonlibClient(loop, lite_server_config, keystore=keystore, cdll_path=args.cdll)
