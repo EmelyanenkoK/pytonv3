@@ -11,7 +11,6 @@ from tvm_valuetypes.cell import deserialize_cell_from_object
 import warnings, traceback
 
 default_config = {
-
   "liteservers": [
     {
       "ip": 1137658550,
