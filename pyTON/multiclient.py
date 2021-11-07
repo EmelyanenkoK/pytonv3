@@ -173,7 +173,7 @@ class TonlibMultiClient:
           if tlt <= to_transaction_lt:
             reach_lt = True
             break
-          all_transactions.append(t)
+          all_transactions.append(copy.deepcopy(t))
         if next:
           current_lt, curret_hash = int(next["lt"]), b64str_hex(next["hash"])
         else:
@@ -250,7 +250,7 @@ class TonlibMultiClient:
         return await self.dispatch_request(current_function_name())
     @cached(ttl=600, cache=Cache.MEMORY)
     async def lookupBlock(self, workchain, shard, seqno=None, lt=None, unixtime=None):
-        if workchain == -1 and seqno and self.current_consensus_block - master_seqno < 2000:
+        if workchain == -1 and seqno and self.current_consensus_block - seqno < 2000:
           return await self.dispatch_request(current_function_name(), workchain, shard, seqno, lt, unixtime)
         else:
           return await self.dispatch_archive_request(current_function_name(), workchain, shard, seqno, lt, unixtime)
@@ -296,7 +296,7 @@ class TonlibMultiClient:
         else:
           total_result["transactions"]+=result["transactions"]
           total_result["incomplete"] = result["incomplete"]
-        incomplete = result["incomplete"]
+        incomplete = result.get("incomplete", False)
         if incomplete:
           after_tx['account'] = result["transactions"][-1]["account"]
           after_tx['lt'] = result["transactions"][-1]["lt"]
@@ -310,7 +310,7 @@ class TonlibMultiClient:
 
     @cached(ttl=600, cache=Cache.MEMORY)
     async def getBlockHeader(self, workchain, shard, seqno, root_hash=None, file_hash=None):
-        if workchain == -1 and seqno and self.current_consensus_block - master_seqno < 2000:
+        if workchain == -1 and seqno and self.current_consensus_block - seqno < 2000:
           return await self.dispatch_request(current_function_name(), workchain, shard, seqno, root_hash, file_hash)
         else: 
           return await self.dispatch_archive_request(current_function_name(), workchain, shard, seqno, root_hash, file_hash)

@@ -44,7 +44,7 @@ class TonlibClient:
 
     async def reconnect(self):
       if not self.tonlib_wrapper.shutdown_state:
-        print(time.time(), "reconnect")
+        #print(time.time(), "reconnect")
         self.tonlib_wrapper.shutdown_state  = "started"
         await self.init_tonlib()
 

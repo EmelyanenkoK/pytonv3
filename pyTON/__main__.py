@@ -585,7 +585,8 @@ async def main(loop):
     site = web.TCPSite(runner, '0.0.0.0', port)
     await site.start()
     while True:
-      await asyncio.sleep(1)
+      await asyncio.sleep(60)
+      tonlib.print_stats()
     await runner.cleanup()
 
 
