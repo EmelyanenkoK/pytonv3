@@ -1,0 +1,14 @@
+diff --git a/tdutils/td/utils/logging.cpp b/tdutils/td/utils/logging.cpp
+index 477823b..074c89d 100644
+--- a/tdutils/td/utils/logging.cpp
++++ b/tdutils/td/utils/logging.cpp
+@@ -277,7 +277,7 @@ void process_fatal_error(CSlice message) {
+   if (callback) {
+     callback(message);
+   }
+-  std::abort();
++  throw std::runtime_error(message.c_str());
+ }
+ 
+ namespace {
+
