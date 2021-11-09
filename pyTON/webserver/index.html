@@ -125,6 +125,11 @@ curl '<span class="server-address">localhost:8000/</span>jsonRPC' -H 'content-ty
 	  <td>Optional</td>
       <td>Logical time of transaction to finish with (that way it is possible to get tx from lt to to_lt)</td>
     </tr>
+    <tr>
+      <td>archival</td>
+          <td>Optional</td>
+      <td>By default getTransaction request is processed by any available liteserver. If archival=1 only liteservers with full history are used</td>
+    </tr>
   </tbody>
 </table>
 <h3>getAddressBalance</h3>

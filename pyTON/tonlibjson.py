@@ -27,7 +27,10 @@ class TonLib:
         tonlib_json_client_create = tonlib.tonlib_client_json_create
         tonlib_json_client_create.restype = c_void_p
         tonlib_json_client_create.argtypes = []
-        self._client = tonlib_json_client_create()
+        try:
+          self._client = tonlib_json_client_create()
+        except Exception:
+          asyncio.ensure_future(self.restart_hook(), loop=self.loop)
 
         tonlib_json_client_receive = tonlib.tonlib_client_json_receive
         tonlib_json_client_receive.restype = c_char_p
@@ -58,14 +61,23 @@ class TonLib:
 
 
     def __del__(self):
-        self._tonlib_json_client_destroy(self._client)
+        try:
+          self._tonlib_json_client_destroy(self._client)
+        except Exception:
+          asyncio.ensure_future(self.restart_hook(), loop=self.loop)
 
     def send(self, query):
         query = json.dumps(query).encode('utf-8')
-        self._tonlib_json_client_send(self._client, query)
+        try:
+          self._tonlib_json_client_send(self._client, query)
+        except Exception:
+          asyncio.ensure_future(self.restart_hook(), loop=self.loop)
 
     def receive(self, timeout=10):
-        result = self._tonlib_json_client_receive(self._client, timeout)
+        try:
+          result = self._tonlib_json_client_receive(self._client, timeout)
+        except Exception:
+          asyncio.ensure_future(self.restart_hook(), loop=self.loop)
         if result:
             result = json.loads(result.decode('utf-8'))
         return result
@@ -95,6 +107,10 @@ class TonLib:
               result = await asyncio.wait_for(self.loop.run_in_executor(None, f), timeout=3.0)
           except asyncio.TimeoutError:
               print("Timeout")
+              autorestart = True
+              result = False
+          except Exception:
+              # tonlib itself may crash
               autorestart = True
               result = False
           if result and isinstance(result, dict) and ("@extra" in result) and (result["@extra"] in self.futures):

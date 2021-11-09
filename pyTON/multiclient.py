@@ -5,9 +5,19 @@ import inspect
 import copy
 import asyncio
 import time
-from datetime import datetime
-
+import codecs
 from aiocache import cached, Cache
+import struct
+import socket
+from concurrent.futures import ThreadPoolExecutor
+import threading
+from datetime import datetime, timezone
+
+import json
+from .tonlibjson import TonLib
+from .address_utils import prepare_address, detect_address
+from tvm_valuetypes import serialize_tvm_stack, render_tvm_stack, deserialize_boc
+
 
 def current_function_name():
   return inspect.stack()[1].function
@@ -26,6 +36,7 @@ async def drop_pending(crts):
 async def handle_coroutines(done, pending):
   await drop_awaited_exceptions(done)
   await drop_pending(pending)
+
 
 class TonlibMultiClient:
     def __init__(self, loop, config, keystore, cdll_path=None):
@@ -65,9 +76,9 @@ class TonlibMultiClient:
         while True:
             ts = time.time()
             await self.detect_working()
-            #if mandatory_check or not (int(ts) % 600):
-            #  await self.detect_archival()
-            #  mandatory_check = False
+            if mandatory_check or not (int(ts) % 600):
+              await self.detect_archival()
+              mandatory_check = False
             nts = time.time()
             if nts-ts<1:
               await asyncio.sleep(1+ts-nts)
@@ -104,8 +115,8 @@ class TonlibMultiClient:
     async def detect_archival(self):
       success = {}
       async def f(l):
-        result = await self.all_clients[l].getBlockTransactions( -1, -9223372036854775808, 2)
-        success[l] = result["ok"] == True
+        result = await self.all_clients[l].getBlockTransactions( -1, -9223372036854775808, random.randint(2, 2000000))
+        success[l] = result.get("@type", "") == "blocks.transactions"
       done, pending = await asyncio.wait( [ f(i) for i in range(len(self.all_clients))], timeout= 2)
       await handle_coroutines(done, pending)
       for i in range(len(self.all_clients)):
@@ -189,12 +200,18 @@ class TonlibMultiClient:
               t["in_msg"]["destination"] = t["in_msg"]["destination"]["account_address"]
             try:
               if "msg_data" in t["in_msg"]:
-                msg_cell_boc = codecs.decode(codecs.encode(t["in_msg"]["msg_data"]["body"],'utf8'), 'base64')
-                message_cell = deserialize_boc(msg_cell_boc)
-                msg = message_cell.data.data.tobytes()
-                t["in_msg"]["message"] = codecs.decode(codecs.encode(msg,'base64'), "utf8")
-            except:
+                dcd = ""
+                if t["in_msg"]["msg_data"]["@type"] == "msg.dataRaw":
+                  msg_cell_boc = codecs.decode(codecs.encode(t["in_msg"]["msg_data"]["body"],'utf8'), 'base64')
+                  message_cell = deserialize_boc(msg_cell_boc)
+                  dcd = message_cell.data.data.tobytes()
+                  t["in_msg"]["message"] = codecs.decode(codecs.encode(dcd,'base64'), "utf8")
+                elif t["in_msg"]["msg_data"]["@type"] == "msg.dataText":
+                  dcd = codecs.encode(t["in_msg"]["msg_data"]["text"],'utf8')
+                  t["in_msg"]["message"] = codecs.decode(codecs.decode(dcd,'base64'), "utf8")
+            except Exception as e:
               t["in_msg"]["message"]=""
+              print(e)
           if "out_msgs" in t:
             for o in t["out_msgs"]:
               if "source" in o:
@@ -203,11 +220,16 @@ class TonlibMultiClient:
                 o["destination"] = o["destination"]["account_address"]
               try:
                 if "msg_data" in o:
-                  msg_cell_boc = codecs.decode(codecs.encode(o["msg_data"]["body"],'utf8'), 'base64')
-                  message_cell = deserialize_boc(msg_cell_boc)
-                  msg = message_cell.data.data.tobytes()
-                  o["message"] = codecs.decode(codecs.encode(msg,'base64'), "utf8")
-              except:
+                  dcd = ""
+                  if o["msg_data"]["@type"] == "msg.dataRaw":
+                    msg_cell_boc = codecs.decode(codecs.encode(o["msg_data"]["body"],'utf8'), 'base64')
+                    message_cell = deserialize_boc(msg_cell_boc)
+                    dcd  = message_cell.data.data.tobytes()
+                    o["message"] = codecs.decode(codecs.encode(dcd,'base64'), "utf8")
+                  elif o["msg_data"]["@type"] == "msg.dataText":
+                    dcd = codecs.encode(o["msg_data"]["text"],'utf8')
+                    o["message"] = codecs.decode(codecs.decode(dcd,'base64'), "utf8")
+              except Exception as e:
                  o["message"]=""
         except Exception as e:
           print("getTransaction exception", e)
@@ -295,7 +317,7 @@ class TonlibMultiClient:
           total_result = result
         else:
           total_result["transactions"]+=result["transactions"]
-          total_result["incomplete"] = result["incomplete"]
+          total_result["incomplete"] = result.get("incomplete", False)
         incomplete = result.get("incomplete", False)
         if incomplete:
           after_tx['account'] = result["transactions"][-1]["account"]

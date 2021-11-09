@@ -338,7 +338,8 @@ async def main(loop):
       tx_hash = request.query.get('hash', None)
       to_lt = request.query.get('to_lt', 0)
       to_lt = to_lt if not to_lt else int(to_lt)
-      return await tonlib.get_transactions(address, from_transaction_lt = lt, from_transaction_hash = tx_hash, to_transaction_lt = to_lt, limit = limit)
+      archival = bool(request.query.get('archival', False))
+      return await tonlib.get_transactions(address, from_transaction_lt = lt, from_transaction_hash = tx_hash, to_transaction_lt = to_lt, limit = limit, archival = archival)
 
     @routes.get('/getAddressBalance')
     @json_rpc('getAddressBalance', 'get')
