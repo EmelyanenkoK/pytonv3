@@ -47,6 +47,8 @@ class TonlibMultiClient:
         self.cdll_path = cdll_path
         self.current_consensus_block = 0
         self.stats = {}
+        self.saved_stats = {"time":time.time()}
+        self.usage_stats = {}
         self.archive_stats = {}
 
     async def init_tonlib(self):
@@ -70,6 +72,17 @@ class TonlibMultiClient:
         print(time.time(), datetime.utcfromtimestamp(time.time()).strftime('%Y-%m-%d %H:%M:%SZ'))
         for i in self.stats:
             print(i, self.stats[i])
+
+    def check_rotate_stats(self):
+      if self.saved_stats["time"] +60 < time.time():
+        diff = {}
+        for i in self.stats:
+         diff[i] = self.stats[i] - self.saved_stats.get(i,0)
+         diff["period"] = time.time() - self.saved_stats.get("time", 0)
+        self.saved_stats = copy.deepcopy(self.stats)
+        self.saved_stats["time"] = time.time()
+        self.usage_stats = diff
+     
 
     async def checking_loop(self):
         mandatory_check = True
@@ -124,6 +137,7 @@ class TonlibMultiClient:
 
     async def dispatch_request(self, method, *args, **kwargs):
       self.stats[method] = self.stats.get(method,0) + 1
+      self.check_rotate_stats()
       self.archive_stats[0] = self.archive_stats.get(0,0) + 1
       client = random.choice([cl for cl in self.all_clients if cl.is_working])
       client.consensus_block = self.current_consensus_block
@@ -245,7 +259,7 @@ class TonlibMultiClient:
     async def raw_run_method(self, address, method, stack_data, output_layout=None):
         return await self.dispatch_request(current_function_name(), address, method, stack_data, output_layout)
     async def raw_send_message(self, serialized_boc):
-        method = "rew_send_message"
+        method = "raw_send_message"
         self.stats[method] = self.stats.get(method,0) + 1
         working = [cl for cl in self.all_clients if cl.is_working]
         async def f(cl):

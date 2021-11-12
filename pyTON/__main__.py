@@ -542,6 +542,13 @@ async def main(loop):
         raise web.HTTPBadRequest(text = "Can't serialize cell object")
       return await tonlib.raw_estimate_fees(address, body, init_code=qcode, init_data=qdata, ignore_chksig=ignore_chksig)
 
+    @routes.get('/usage_stats')
+    @json_rpc('usage_stats', 'get')
+    @wrap_result
+    async def usage_stats(request):
+      return tonlib.usage_stats
+
+
     if args.getmethods:
         @routes.post('/runGetMethod')
         @json_rpc('runGetMethod', 'post')
