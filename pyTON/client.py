@@ -37,7 +37,7 @@ class TonlibClient:
         self.loop = loop
         self.config = config
         self.keystore = keystore
-		self.libtonlibjson = libtonlibjson
+        self.libtonlibjson = libtonlibjson
 
     async def connect(self):
         pass
