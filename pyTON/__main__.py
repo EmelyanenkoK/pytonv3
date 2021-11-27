@@ -190,7 +190,7 @@ async def main(loop):
     parser.add_argument('--getmethods', '-g', default=False, type=bool)
     parser.add_argument('--jsonrpc', '-j', default=True, type=bool)
     parser.add_argument('--liteserverconfig', '-l', default=None, type=str)
-	parser.add_argument('--libtonlibjson', '-b', default=None, type=str)
+    parser.add_argument('--libtonlibjson', '-b', default=None, type=str)
     args = parser.parse_args()
     port = args.port
 	libtonlibjson = args.libtonlibjson
