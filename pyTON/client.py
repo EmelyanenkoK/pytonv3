@@ -33,10 +33,11 @@ def h2b64(x):
 
 class TonlibClient:
 
-    def __init__(self, loop, config, keystore):
+    def __init__(self, loop, config, keystore, libtonlibjson):
         self.loop = loop
         self.config = config
         self.keystore = keystore
+		self.libtonlibjson = libtonlibjson
 
     async def connect(self):
         pass
@@ -62,7 +63,7 @@ class TonlibClient:
         :return: None
         """
         self.loaded_contracts_num = 0
-        wrapper = TonLib(self.loop)
+        wrapper = TonLib(self.loop, self.libtonlibjson)
         keystore_obj = {
                 '@type': 'keyStoreTypeDirectory',
                 'directory': self.keystore

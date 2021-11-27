@@ -190,8 +190,10 @@ async def main(loop):
     parser.add_argument('--getmethods', '-g', default=False, type=bool)
     parser.add_argument('--jsonrpc', '-j', default=True, type=bool)
     parser.add_argument('--liteserverconfig', '-l', default=None, type=str)
+	parser.add_argument('--libtonlibjson', '-b', default=None, type=str)
     args = parser.parse_args()
     port = args.port
+	libtonlibjson = args.libtonlibjson
     routes = web.RouteTableDef()
     lite_server_config = default_config
     if args.liteserverconfig:
@@ -204,7 +206,7 @@ async def main(loop):
     keystore= os.path.expanduser('ton_keystore')
     if not os.path.exists(keystore):
         os.makedirs(keystore)
-    tonlib = TonlibClient(loop, lite_server_config, keystore=keystore)
+    tonlib = TonlibClient(loop, lite_server_config, keystore, libtonlibjson)
     await tonlib.init_tonlib()
 
     def detect_address(address):
