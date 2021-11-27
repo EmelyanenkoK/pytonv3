@@ -193,7 +193,7 @@ async def main(loop):
     parser.add_argument('--libtonlibjson', '-b', default=None, type=str)
     args = parser.parse_args()
     port = args.port
-	libtonlibjson = args.libtonlibjson
+    libtonlibjson = args.libtonlibjson
     routes = web.RouteTableDef()
     lite_server_config = default_config
     if args.liteserverconfig:
