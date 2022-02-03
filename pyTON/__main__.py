@@ -455,9 +455,9 @@ async def main(loop):
     async def send_query(request):
       data = await request.json()
       address = prepare_address(data['address'])
-      body = codecs.decode(codecs.encode(data['body'], "utf-8"), 'base64').replace("\n",'') 
-      code = codecs.decode(codecs.encode(data.get('init_code', b''), "utf-8"), 'base64').replace("\n",'') 
-      data = codecs.decode(codecs.encode(data.query.get('init_data', b''), "utf-8"), 'base64').replace("\n",'')
+      body = codecs.decode(codecs.encode(data['body'], "utf-8"), 'base64')
+      code = codecs.decode(codecs.encode(data.get('init_code', b''), "utf-8"), 'base64') 
+      data = codecs.decode(codecs.encode(data.query.get('init_data', b''), "utf-8"), 'base64')
       return await tonlib.raw_create_and_send_query(address, body, init_code=code, init_data=data)
 
     @routes.post('/sendQuerySimple')
@@ -483,11 +483,9 @@ async def main(loop):
     async def estimate_fee(request):
       data = await request.json()
       address = prepare_address(data['address'])
-      addr_info = await tonlib.raw_get_account_state(address)
-      assert address_state(addr_info)=='active', "Address is not active"
-      body = codecs.decode(codecs.encode(data['body'], "utf-8"), 'base64').replace("\n",'') 
-      code = codecs.decode(codecs.encode(data.get('init_code', b''), "utf-8"), 'base64').replace("\n",'') 
-      data = codecs.decode(codecs.encode(data.get('init_data', b''), "utf-8"), 'base64').replace("\n",'')
+      body = codecs.decode(codecs.encode(data['body'], "utf-8"), 'base64')
+      code = codecs.decode(codecs.encode(data.get('init_code', b''), "utf-8"), 'base64')
+      data = codecs.decode(codecs.encode(data.get('init_data', b''), "utf-8"), 'base64')
       ignore_chksig = data.get('ignore_chksig', True)
       return await tonlib.raw_estimate_fees(address, body, init_code=code, init_data=data, ignore_chksig=ignore_chksig)
 
@@ -497,8 +495,6 @@ async def main(loop):
     async def estimate_fee_cell(request):
       data = await request.json()
       address = prepare_address(data['address'])
-      addr_info = await tonlib.raw_get_account_state(address)
-      assert address_state(addr_info)=='active', "Address is not active"
       try:
         body = deserialize_cell_from_object(data['body']).serialize_boc(has_idx=False)
         qcode, qdata = b'', b''
